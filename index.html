@@ -1,165 +1,368 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Browser & Environment Inspector (Local Only)</title>
-  <meta name="description" content="Lightweight, client-side page to display browser and device info without storing data." />
-  <style>
-    :root {
-      --bg: #0b0d10; --fg: #e8eef2; --muted:#a9b6c3; --card:#14181d; --accent:#7bdcff;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
-    }
-    @media (prefers-color-scheme: light) {
-      :root { --bg:#f7fafc; --fg:#111; --muted:#445; --card:#fff; --accent:#0066ff; }
-    }
-    body { margin:0; padding:0; background:var(--bg); color:var(--fg); font-family:var(--sans); }
-    header { padding: 20px 16px; border-bottom:1px solid #223; background:linear-gradient(180deg, rgba(123,220,255,0.15), transparent); }
-    h1 { margin:0 0 6px 0; font-size: clamp(22px, 3vw, 28px); }
-    p.lead { margin:6px 0 0; color:var(--muted); }
-    main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 80px; }
-    .row { display:grid; grid-template-columns: 1fr; gap:14px; }
-    @media (min-width: 900px) { .row { grid-template-columns: 1fr 1fr; } }
-    .card { background:var(--card); border:1px solid #23303c; border-radius:12px; padding:14px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
-    .card h2 { margin:4px 0 10px; font-size: 16px; font-weight: 700; }
-    dl { margin:0; }
-    dt { font-weight:600; margin-top:8px; color:var(--muted); font-size: 13px; }
-    dd { margin:2px 0 8px; font-family: var(--mono); font-size: 13px; word-break: break-word; }
-    .toolbar { position: sticky; top:0; display:flex; gap:8px; padding:10px 0 14px; background: var(--bg); z-index:2; }
-    button { border:1px solid #2b3b49; background: #1a2632; color:var(--fg); padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
-    button:hover { border-color: var(--accent); }
-    footer { max-width: 1000px; margin: 0 auto; padding: 14px 16px 40px; color:var(--muted); font-size:12px; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Browser Inspector — Image Export</title>
+<meta name="description" content="Client-only inspector that can export results as PNG or SVG without sending data.">
+<style>
+  :root {
+    --bg:#0b0d10; --fg:#e8eef2; --muted:#9fb0bf; --card:#14181d; --border:#243442; --accent:#7bdcff;
+    --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans";
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f7fafc; --fg:#0b0d10; --muted:#475569; --card:#ffffff; --border:#e2e8f0; --accent:#0ea5e9; }
+  }
+  html,body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans); }
+  header { padding:20px 16px; border-bottom:1px solid var(--border); background:linear-gradient(180deg, rgba(123,220,255,.12), transparent); }
+  h1 { margin:0 0 6px; font-size:clamp(22px,3vw,28px); }
+  .lead { color:var(--muted); margin:0; }
+  main { max-width:1000px; margin:0 auto; padding:18px 16px 80px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 14px; }
+  button { border:1px solid var(--border); background:var(--card); color:var(--fg); padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
+  button:hover { border-color:var(--accent); }
+  .cards { display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width: 900px){ .cards{ grid-template-columns:1fr 1fr; } }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .card h2 { margin:2px 0 10px; font-size:16px; }
+  dl { margin:0; }
+  dt { color:var(--muted); font-size:13px; margin-top:8px; }
+  dd { margin:2px 0 8px; font-family:var(--mono); font-size:13px; word-break:break-word; }
+  .note { font-size:12px; color:var(--muted); margin-left:auto; }
+  canvas { display:none; } /* only used for PNG rendering */
+</style>
 </head>
 <body>
-  <header>
-    <h1>Browser & Environment Inspector</h1>
-    <p class="lead">All info is collected and rendered <em>in your browser</em>. No requests sent, no storage used.</p>
-  </header>
+<header>
+  <h1>Browser Inspector — Image Export</h1>
+  <p class="lead">Runs locally. Export your detected info as PNG or SVG (no uploads, no servers).</p>
+</header>
 
-  <main>
-    <div class="toolbar">
-      <button id="refreshBtn">↻ Refresh</button>
-      <button id="copyBtn">📋 Copy JSON</button>
-      <button id="downloadBtn">⬇️ Download JSON</button>
-    </div>
+<main>
+  <div class="toolbar">
+    <button id="refreshBtn">↻ Refresh</button>
+    <button id="copyBtn">📋 Copy JSON</button>
+    <button id="downloadJsonBtn">⬇️ JSON</button>
+    <button id="downloadPngBtn">🖼️ PNG</button>
+    <button id="downloadSvgBtn">🧩 SVG</button>
+    <span class="note">PNG is rendered via Canvas; SVG is vector & editable.</span>
+  </div>
 
-    <div class="row">
-      <section class="card"><h2>User Agent & Client Hints</h2><dl id="uaList"></dl></section>
-      <section class="card"><h2>Platform, Locale, Time</h2><dl id="platList"></dl></section>
-      <section class="card"><h2>Screen & Viewport</h2><dl id="screenList"></dl></section>
-      <section class="card"><h2>Hardware & Features</h2><dl id="hwList"></dl></section>
-      <section class="card"><h2>Network (Browser-reported)</h2><dl id="netList"></dl></section>
-      <section class="card"><h2>Storage (Estimate Only)</h2><dl id="storeList"></dl></section>
-      <section class="card"><h2>Document & Navigation</h2><dl id="docList"></dl></section>
-      <section class="card"><h2>Capabilities</h2><dl id="capList"></dl></section>
-    </div>
-  </main>
+  <div class="cards">
+    <section class="card"><h2>User Agent & Client Hints</h2><dl id="uaList"></dl></section>
+    <section class="card"><h2>Platform, Locale, Time</h2><dl id="platList"></dl></section>
+    <section class="card"><h2>Screen & Viewport</h2><dl id="screenList"></dl></section>
+    <section class="card"><h2>Hardware & Features</h2><dl id="hwList"></dl></section>
+    <section class="card"><h2>Network (Browser-reported)</h2><dl id="netList"></dl></section>
+    <section class="card"><h2>Storage (Estimate Only)</h2><dl id="storeList"></dl></section>
+    <section class="card"><h2>Document & Navigation</h2><dl id="docList"></dl></section>
+    <section class="card"><h2>Capabilities</h2><dl id="capList"></dl></section>
+  </div>
 
-  <footer>
-    <p>Built for diagnostics & transparency. No network requests, no analytics, no persistence.</p>
-  </footer>
+  <canvas id="pngCanvas" width="1400" height="0"></canvas>
+</main>
 
-  <script>
-    const $ = (sel) => document.querySelector(sel);
-    const addKV = (root, k, v) => {
-      const dt = document.createElement('dt'); dt.textContent = k;
-      const dd = document.createElement('dd'); dd.textContent = (v ?? '—');
-      root.appendChild(dt); root.appendChild(dd);
-    };
-    const addJSON = (root, k, obj) => addKV(root, k, obj ? JSON.stringify(obj, null, 2) : '—');
-    const bytes = (n) => typeof n === 'number' ? Intl.NumberFormat().format(n) + ' B' : '—';
+<script>
+  // --- Utilities
+  const $ = s => document.querySelector(s);
+  const addKV = (root, k, v) => {
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd'); dd.textContent = (v === undefined || v === null) ? '—' : String(v);
+    root.appendChild(dt); root.appendChild(dd);
+  };
+  const addJSON = (root, k, obj) => addKV(root, k, obj ? JSON.stringify(obj, null, 2) : '—');
+  const bytes = (n) => (typeof n === 'number') ? Intl.NumberFormat().format(n) + ' B' : '—';
 
-    const state = { data: {} };
+  const state = { data: {}, sections: [] };
 
-    async function collectAll() {
-      state.data = {};
-      clearAll();
-      collectUA(); collectPlatform(); collectScreen(); collectHardware(); collectNetwork();
-      await collectStorage(); collectDoc(); collectCapabilities();
+  // --- Collectors
+  async function collectAll(){
+    state.data = {}; state.sections = [];
+    clearAll();
+    collectUA(); collectPlatform(); collectScreen(); collectHardware(); collectNetwork(); await collectStorage(); collectDoc(); collectCapabilities();
+  }
+  function clearAll(){
+    ['uaList','platList','screenList','hwList','netList','storeList','docList','capList'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML=''; });
+  }
+
+  function pushSection(title, obj){
+    state.sections.push({ title, entries: Object.entries(obj).map(([k, v]) => [k, v]) });
+    Object.assign(state.data, { [title]: obj });
+  }
+
+  function collectUA(){
+    const root = $('#uaList');
+    const ua = navigator.userAgent || '—';
+    addKV(root, 'navigator.userAgent', ua);
+    // UA-CH (if available)
+    const uad = navigator.userAgentData;
+    if (uad) {
+      addJSON(root, 'userAgentData.brands', uad.brands || []);
+      addKV(root, 'userAgentData.mobile', uad.mobile);
+      addKV(root, 'userAgentData.platform', uad.platform);
     }
+    pushSection('User Agent', {
+      'navigator.userAgent': ua,
+      ...(uad ? {
+        'ua.brands': (uad.brands||[]).map(b=>`${b.brand} ${b.version}`).join(' | ') || '—',
+        'ua.mobile': uad.mobile,
+        'ua.platform': uad.platform
+      } : {})
+    });
+  }
 
-    function clearAll() {
-      ['uaList','platList','screenList','hwList','netList','storeList','docList','capList']
-        .forEach(id => document.getElementById(id).innerHTML = '');
-    }
+  function collectPlatform(){
+    const root = $('#platList');
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    addKV(root, 'platform', navigator.platform);
+    addKV(root, 'language', navigator.language);
+    addJSON(root, 'languages', navigator.languages || [navigator.language]);
+    addKV(root, 'timeZone', tz);
+    addKV(root, 'now (ISO)', new Date().toISOString());
+    pushSection('Platform/Locale/Time', {
+      platform: navigator.platform,
+      language: navigator.language,
+      languages: (navigator.languages || [navigator.language]).join(', '),
+      timeZone: tz,
+      nowISO: new Date().toISOString()
+    });
+  }
 
-    function collectUA() {
-      const root = $('#uaList');
-      addKV(root, 'navigator.userAgent', navigator.userAgent);
-      state.data.userAgent = navigator.userAgent;
+  function collectScreen(){
+    const root = $('#screenList');
+    const dpr = window.devicePixelRatio || 1;
+    addKV(root, 'screen.width × height', `${screen.width} × ${screen.height}`);
+    addKV(root, 'innerWidth × innerHeight', `${innerWidth} × ${innerHeight}`);
+    addKV(root, 'devicePixelRatio', dpr);
+    pushSection('Screen/Viewport', {
+      'screen': `${screen.width} × ${screen.height}`,
+      'viewport': `${innerWidth} × ${innerHeight}`,
+      'devicePixelRatio': dpr
+    });
+  }
+
+  function collectHardware(){
+    const root = $('#hwList');
+    const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    addKV(root, 'hardwareConcurrency (cores)', navigator.hardwareConcurrency ?? '—');
+    addKV(root, 'deviceMemory (GiB, approx)', navigator.deviceMemory ?? '—');
+    addKV(root, 'maxTouchPoints', navigator.maxTouchPoints ?? '—');
+    addKV(root, 'prefers-reduced-motion', prefersReducedMotion);
+    pushSection('Hardware/Features', {
+      cores: navigator.hardwareConcurrency ?? '—',
+      deviceMemoryGiB: navigator.deviceMemory ?? '—',
+      maxTouchPoints: navigator.maxTouchPoints ?? '—',
+      prefersReducedMotion
+    });
+  }
+
+  function collectNetwork(){
+    const root = $('#netList');
+    const c = navigator.connection || navigator.webkitConnection || navigator.mozConnection;
+    if (c) {
+      addKV(root, 'effectiveType', c.effectiveType);
+      addKV(root, 'downlink (Mbps)', c.downlink);
+      addKV(root, 'rtt (ms)', c.rtt);
+      addKV(root, 'saveData', c.saveData);
+      pushSection('Network', {
+        effectiveType: c.effectiveType,
+        downlinkMbps: c.downlink,
+        rttMs: c.rtt,
+        saveData: c.saveData
+      });
+    } else {
+      addKV(root, 'navigator.connection', 'not available');
+      pushSection('Network', { connection: 'not available' });
     }
-    function collectPlatform() {
-      const root = $('#platList');
-      addKV(root, 'platform', navigator.platform);
-      addKV(root, 'language', navigator.language);
-      addJSON(root, 'languages', navigator.languages);
-      addKV(root, 'timeZone', Intl.DateTimeFormat().resolvedOptions().timeZone);
-      state.data.platform = { platform: navigator.platform, language: navigator.language, languages: navigator.languages };
-    }
-    function collectScreen() {
-      const root = $('#screenList');
-      addKV(root, 'screen', `${screen.width}×${screen.height}`);
-      addKV(root, 'viewport', `${innerWidth}×${innerHeight}`);
-      state.data.screen = { screen: [screen.width,screen.height], viewport: [innerWidth,innerHeight] };
-    }
-    function collectHardware() {
-      const root = $('#hwList');
-      addKV(root, 'cores', navigator.hardwareConcurrency);
-      addKV(root, 'deviceMemory (GiB)', navigator.deviceMemory ?? '—');
-      addKV(root, 'touchPoints', navigator.maxTouchPoints);
-      state.data.hardware = { cores: navigator.hardwareConcurrency, deviceMemory: navigator.deviceMemory, touch: navigator.maxTouchPoints };
-    }
-    function collectNetwork() {
-      const root = $('#netList');
-      const c = navigator.connection;
-      if (c) {
-        addKV(root, 'effectiveType', c.effectiveType);
-        addKV(root, 'downlink (Mbps)', c.downlink);
-        state.data.network = { effectiveType: c.effectiveType, downlink: c.downlink };
-      } else { addKV(root, 'connection', 'not available'); }
-    }
-    async function collectStorage() {
-      const root = $('#storeList');
-      if (navigator.storage?.estimate) {
+  }
+
+  async function collectStorage(){
+    const root = $('#storeList');
+    if (navigator.storage?.estimate) {
+      try {
         const est = await navigator.storage.estimate();
         addKV(root, 'quota', bytes(est.quota));
         addKV(root, 'usage', bytes(est.usage));
-        state.data.storage = est;
-      } else { addKV(root, 'storage', 'not available'); }
+        pushSection('Storage (Estimate)', {
+          quotaBytes: est.quota ?? '—',
+          usageBytes: est.usage ?? '—'
+        });
+      } catch {
+        addKV(root, 'storage.estimate', 'error');
+        pushSection('Storage (Estimate)', { error: true });
+      }
+    } else {
+      addKV(root, 'storage', 'not available');
+      pushSection('Storage (Estimate)', { available: false });
     }
-    function collectDoc() {
-      const root = $('#docList');
-      addKV(root, 'referrer', document.referrer || '—');
-      addKV(root, 'visibilityState', document.visibilityState);
-      state.data.document = { referrer: document.referrer, visibility: document.visibilityState };
-    }
-    function collectCapabilities() {
-      const root = $('#capList');
-      const caps = {
-        geolocation: !!navigator.geolocation,
-        clipboard: !!navigator.clipboard,
-        webgl: 'WebGLRenderingContext' in window,
-        notifications: 'Notification' in window
-      };
-      Object.entries(caps).forEach(([k,v]) => addKV(root, k, v));
-      state.data.capabilities = caps;
-    }
+  }
 
-    $('#refreshBtn').addEventListener('click', collectAll);
-    $('#copyBtn').addEventListener('click', async () => {
-      await navigator.clipboard.writeText(JSON.stringify(state.data, null, 2));
-      alert('Copied JSON to clipboard');
+  function collectDoc(){
+    const root = $('#docList');
+    addKV(root, 'referrer', document.referrer || '—');
+    addKV(root, 'visibilityState', document.visibilityState);
+    pushSection('Document/Navigation', {
+      referrer: document.referrer || '—',
+      visibility: document.visibilityState
     });
-    $('#downloadBtn').addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-      a.download = 'browser-inspector.json'; a.click();
+  }
+
+  function collectCapabilities(){
+    const root = $('#capList');
+    const caps = {
+      geolocation: !!navigator.geolocation,
+      clipboard: !!navigator.clipboard,
+      webgl: 'WebGLRenderingContext' in window,
+      notifications: 'Notification' in window,
+      serviceWorker: 'serviceWorker' in navigator
+    };
+    Object.entries(caps).forEach(([k,v]) => addKV(root, k, v));
+    pushSection('Capabilities', caps);
+  }
+
+  // --- Exports
+  function buildSVG(){
+    // Simple card-like SVG layout with monospace values
+    const pad = 24, lineH = 18, titleH = 22, cardGap = 20, cardPad = 16, colGap = 40;
+    const colWidth = 620; // two columns
+    const cols = 2;
+    // Pre-measure height
+    const entryLines = s => String(s).split(/\r?\n/).length;
+    const cardHeights = state.sections.map(sec => {
+      let h = titleH + 8;
+      sec.entries.forEach(([k, v]) => { h += lineH * Math.max(1, entryLines(v)); });
+      return h + cardPad*2;
+    });
+
+    // Pack cards into two columns
+    const colHeights = Array(cols).fill(0);
+    const positions = state.sections.map((sec, i) => {
+      const col = (colHeights[0] <= colHeights[1]) ? 0 : 1;
+      const x = pad + col * (colWidth + colGap);
+      const y = pad + colHeights[col];
+      colHeights[col] += cardHeights[i] + cardGap;
+      return { x, y, w: colWidth, h: cardHeights[i], col };
+    });
+
+    const width = pad*2 + cols*colWidth + (cols-1)*colGap;
+    const height = Math.max(colHeights[0], colHeights[1]) + pad;
+
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const now = new Date().toISOString();
+
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" role="img" aria-label="Browser Inspector">
+  <style>
+    .bg { fill: ${getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0b0d10'}; }
+    .card { fill: ${getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#14181d'}; stroke: ${getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || '#243442'}; }
+    .title { font: 700 14px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: ${getComputedStyle(document.documentElement).getPropertyValue('--fg').trim() || '#e8eef2'}; }
+    .k { font: 600 12px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: ${getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#9fb0bf'}; }
+    .v { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: ${getComputedStyle(document.documentElement).getPropertyValue('--fg').trim() || '#e8eef2'}; white-space: pre; }
+    .hdr { font: 700 16px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: ${getComputedStyle(document.documentElement).getPropertyValue('--fg').trim() || '#e8eef2'}; }
+    .sub { font: 12px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: ${getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#9fb0bf'}; }
+  </style>
+  <rect class="bg" x="0" y="0" width="${width}" height="${height}" rx="0"/>
+  <text x="${pad}" y="${pad-6}" class="hdr">Browser Inspector — ${esc(now)}</text>
+  <text x="${pad}" y="${pad+10}" class="sub">Local-only export (no network). Theme matches your system preference.</text>
+`;
+    state.sections.forEach((sec, i) => {
+      const { x, y, w, h } = positions[i];
+      svg += `  <g>
+    <rect class="card" x="${x}" y="${y}" width="${w}" height="${h}" rx="12"/>
+    <text class="title" x="${x+cardPad}" y="${y+cardPad+12}">${esc(sec.title)}</text>
+`;
+      let cursorY = y + cardPad + 12 + 8 + 6;
+      sec.entries.forEach(([k, v]) => {
+        const val = String(v ?? '—');
+        const lines = val.split(/\r?\n/);
+        svg += `    <text class="k" x="${x+cardPad}" y="${cursorY}">${esc(k)}</text>\n`;
+        cursorY += 14;
+        lines.forEach(ln => {
+          svg += `    <text class="v" x="${x+cardPad}" y="${cursorY}">${esc(ln)}</text>\n`;
+          cursorY += 16;
+        });
+        cursorY += 2;
+      });
+      svg += '  </g>\n';
+    });
+
+    svg += '</svg>';
+    return svg;
+  }
+
+  function downloadSVG(){
+    const svg = buildSVG();
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'browser-inspector.svg';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function downloadPNG(){
+    // Render SVG to canvas, then to PNG
+    const svg = buildSVG();
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    const img = new Image();
+    // Ensure proper sizing by reading width/height from the SVG we generated
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svg, 'image/svg+xml');
+    const w = parseInt(doc.documentElement.getAttribute('width'), 10);
+    const h = parseInt(doc.documentElement.getAttribute('height'), 10);
+
+    const canvas = $('#pngCanvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    await new Promise((res, rej) => {
+      img.onload = () => { res(); };
+      img.onerror = rej;
+      img.src = url;
+    });
+
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'browser-inspector.png';
+      a.click();
       URL.revokeObjectURL(a.href);
-    });
+    }, 'image/png', 1.0);
+  }
 
-    collectAll();
-  </script>
+  // --- UI actions
+  $('#refreshBtn').addEventListener('click', collectAll);
+  $('#copyBtn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(state.data, null, 2));
+      alert('Copied JSON to clipboard.');
+    } catch { alert('Clipboard not available.'); }
+  });
+  $('#downloadJsonBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'browser-inspector.json'; a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  $('#downloadPngBtn').addEventListener('click', downloadPNG);
+  $('#downloadSvgBtn').addEventListener('click', downloadSVG);
+
+  // Initial run + keep viewport section fresh on resize
+  collectAll();
+  addEventListener('resize', () => {
+    const list = $('#screenList'); list.innerHTML = '';
+    collectScreen();
+    // also update the section used for image export
+    const i = state.sections.findIndex(s => s.title === 'Screen/Viewport');
+    if (i !== -1) state.sections[i] = { title: 'Screen/Viewport', entries: Object.entries({
+      'screen': `${screen.width} × ${screen.height}`,
+      'viewport': `${innerWidth} × ${innerHeight}`,
+      'devicePixelRatio': window.devicePixelRatio || 1
+    })};
+  }, { passive: true });
+</script>
 </body>
 </html>
