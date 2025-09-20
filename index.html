@@ -3,40 +3,33 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Local Browser & Environment Inspector </title>
+  <title>Browser & Environment Inspector (Local Only)</title>
   <meta name="description" content="Lightweight, client-side page to display browser and device info without storing data." />
   <style>
     :root {
-      --bg: #0b0d10; --fg: #e8eef2; --muted:#a9b6c3; --card:#14181d; --accent:#7bdcff; --ok:#58d68d; --warn:#f5b041;
+      --bg: #0b0d10; --fg: #e8eef2; --muted:#a9b6c3; --card:#14181d; --accent:#7bdcff;
       --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
       --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
     }
     @media (prefers-color-scheme: light) {
-      :root { --bg:#f7fafc; --fg:#111; --muted:#445; --card:#fff; --accent:#0066ff; --ok:#1b8f4d; --warn:#a06400; }
+      :root { --bg:#f7fafc; --fg:#111; --muted:#445; --card:#fff; --accent:#0066ff; }
     }
-    html,body { margin:0; padding:0; background:var(--bg); color:var(--fg); font-family:var(--sans); }
+    body { margin:0; padding:0; background:var(--bg); color:var(--fg); font-family:var(--sans); }
     header { padding: 20px 16px; border-bottom:1px solid #223; background:linear-gradient(180deg, rgba(123,220,255,0.15), transparent); }
     h1 { margin:0 0 6px 0; font-size: clamp(22px, 3vw, 28px); }
     p.lead { margin:6px 0 0; color:var(--muted); }
     main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 80px; }
     .row { display:grid; grid-template-columns: 1fr; gap:14px; }
     @media (min-width: 900px) { .row { grid-template-columns: 1fr 1fr; } }
-    .card { background:var(--card); border:1px solid #23303c; border-radius:12px; padding:14px 14px 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
-    .card h2 { margin:4px 0 10px; font-size: 16px; font-weight: 700; letter-spacing: .2px; }
+    .card { background:var(--card); border:1px solid #23303c; border-radius:12px; padding:14px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+    .card h2 { margin:4px 0 10px; font-size: 16px; font-weight: 700; }
     dl { margin:0; }
     dt { font-weight:600; margin-top:8px; color:var(--muted); font-size: 13px; }
     dd { margin:2px 0 8px; font-family: var(--mono); font-size: 13px; word-break: break-word; }
-    code.inline { background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:6px; }
-    .toolbar { position: sticky; top:0; display:flex; gap:8px; flex-wrap:wrap; padding:10px 0 14px; background: linear-gradient(180deg, var(--bg), color-mix(in oklab, var(--bg) 80%, transparent)); z-index:2; }
+    .toolbar { position: sticky; top:0; display:flex; gap:8px; padding:10px 0 14px; background: var(--bg); z-index:2; }
     button { border:1px solid #2b3b49; background: #1a2632; color:var(--fg); padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
     button:hover { border-color: var(--accent); }
-    .note { font-size: 12px; color: var(--muted); margin-top: 10px; }
-    .ok { color: var(--ok); }
-    .warn { color: var(--warn); }
     footer { max-width: 1000px; margin: 0 auto; padding: 14px 16px 40px; color:var(--muted); font-size:12px; }
-    details { margin-top: 8px; }
-    summary { cursor: pointer; color: var(--accent); }
-    .small { font-size: 12px; }
   </style>
 </head>
 <body>
@@ -47,78 +40,20 @@
 
   <main>
     <div class="toolbar">
-      <button id="refreshBtn" title="Re-run all checks">↻ Refresh</button>
-      <button id="copyBtn" title="Copy as JSON">📋 Copy JSON</button>
-      <button id="downloadBtn" title="Download JSON">⬇️ Download JSON</button>
-      <button id="webglBtn" title="Probe WebGL renderer">🎮 Probe WebGL</button>
-      <button id="permBtn" title="Check permissions">🔒 Check Permissions</button>
-      <button id="batteryBtn" title="Check battery">🔋 Check Battery</button>
-      <span class="note">Tip: WebGL & Battery may be unavailable; this page won’t request sensitive permissions.</span>
+      <button id="refreshBtn">↻ Refresh</button>
+      <button id="copyBtn">📋 Copy JSON</button>
+      <button id="downloadBtn">⬇️ Download JSON</button>
     </div>
 
     <div class="row">
-      <section class="card" id="ua">
-        <h2>User Agent & Client Hints</h2>
-        <dl id="uaList"></dl>
-        <p class="note small">UA-CH (`navigator.userAgentData`) is available in Chromium-based browsers; values may be reduced for privacy.</p>
-      </section>
-
-      <section class="card" id="platform">
-        <h2>Platform, Locale, Time</h2>
-        <dl id="platList"></dl>
-      </section>
-
-      <section class="card" id="screen">
-        <h2>Screen & Viewport</h2>
-        <dl id="screenList"></dl>
-      </section>
-
-      <section class="card" id="hardware">
-        <h2>Hardware & Features</h2>
-        <dl id="hwList"></dl>
-        <details class="small"><summary>What’s included?</summary>
-          <p>CPU cores, approximate device memory, Do Not Track, cookie support, touch capability, pointer types, and reduced motion preference.</p>
-        </details>
-      </section>
-
-      <section class="card" id="network">
-        <h2>Network (Browser-reported)</h2>
-        <dl id="netList"></dl>
-        <p class="note small">This does <em>not</em> fetch your IP. Values come from <code class="inline">navigator.connection</code> when available.</p>
-      </section>
-
-      <section class="card" id="storage">
-        <h2>Storage (Estimate Only)</h2>
-        <dl id="storeList"></dl>
-        <p class="note small">We call <code class="inline">navigator.storage.estimate()</code>, but we do not write to storage.</p>
-      </section>
-
-      <section class="card" id="doc">
-        <h2>Document & Navigation</h2>
-        <dl id="docList"></dl>
-      </section>
-
-      <section class="card" id="cap">
-        <h2>Capabilities</h2>
-        <dl id="capList"></dl>
-        <p class="note small">Safe feature probes without requesting permissions.</p>
-      </section>
-
-      <section class="card" id="webgl">
-        <h2>WebGL Renderer</h2>
-        <dl id="webglList"><dt>Status</dt><dd>Not probed yet.</dd></dl>
-        <p class="note small">Renderer strings can be identifying; probing is manual (button above).</p>
-      </section>
-
-      <section class="card" id="perm">
-        <h2>Permissions Snapshot</h2>
-        <dl id="permList"><dt>Status</dt><dd>Not checked yet.</dd></dl>
-      </section>
-
-      <section class="card" id="bat">
-        <h2>Battery</h2>
-        <dl id="batList"><dt>Status</dt><dd>Not checked yet.</dd></dl>
-      </section>
+      <section class="card"><h2>User Agent & Client Hints</h2><dl id="uaList"></dl></section>
+      <section class="card"><h2>Platform, Locale, Time</h2><dl id="platList"></dl></section>
+      <section class="card"><h2>Screen & Viewport</h2><dl id="screenList"></dl></section>
+      <section class="card"><h2>Hardware & Features</h2><dl id="hwList"></dl></section>
+      <section class="card"><h2>Network (Browser-reported)</h2><dl id="netList"></dl></section>
+      <section class="card"><h2>Storage (Estimate Only)</h2><dl id="storeList"></dl></section>
+      <section class="card"><h2>Document & Navigation</h2><dl id="docList"></dl></section>
+      <section class="card"><h2>Capabilities</h2><dl id="capList"></dl></section>
     </div>
   </main>
 
@@ -127,304 +62,104 @@
   </footer>
 
   <script>
-    // Helpers
     const $ = (sel) => document.querySelector(sel);
     const addKV = (root, k, v) => {
       const dt = document.createElement('dt'); dt.textContent = k;
-      const dd = document.createElement('dd'); dd.textContent = (v === undefined || v === null) ? '—' : String(v);
+      const dd = document.createElement('dd'); dd.textContent = (v ?? '—');
       root.appendChild(dt); root.appendChild(dd);
     };
     const addJSON = (root, k, obj) => addKV(root, k, obj ? JSON.stringify(obj, null, 2) : '—');
-    const bytes = (n) => (typeof n === 'number') ? Intl.NumberFormat().format(n) + ' B' : '—';
+    const bytes = (n) => typeof n === 'number' ? Intl.NumberFormat().format(n) + ' B' : '—';
 
     const state = { data: {} };
 
     async function collectAll() {
       state.data = {};
       clearAll();
-
-      collectUA();
-      collectPlatformLocaleTime();
-      collectScreenViewport();
-      collectHardware();
-      collectNetwork();
-      await collectStorage();
-      collectDocumentNav();
-      collectCapabilities();
-      // Deferred (manual): WebGL, Permissions, Battery
+      collectUA(); collectPlatform(); collectScreen(); collectHardware(); collectNetwork();
+      await collectStorage(); collectDoc(); collectCapabilities();
     }
 
     function clearAll() {
-      for (const id of ['uaList','platList','screenList','hwList','netList','storeList','docList','capList']) {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = '';
-      }
+      ['uaList','platList','screenList','hwList','netList','storeList','docList','capList']
+        .forEach(id => document.getElementById(id).innerHTML = '');
     }
 
-    // 1) UA & Client Hints
     function collectUA() {
       const root = $('#uaList');
-      const ua = navigator.userAgent || '—';
-      addKV(root, 'navigator.userAgent', ua);
-      state.data.userAgent = ua;
-
-      const uaData = navigator.userAgentData || navigator.userAgentData === undefined ? navigator.userAgentData : null;
-      if (uaData && typeof uaData === 'object') {
-        const brands = uaData.brands || uaData.uaList || [];
-        addJSON(root, 'userAgentData.brands', brands);
-        addKV(root, 'userAgentData.mobile', uaData.mobile);
-        addKV(root, 'userAgentData.platform', uaData.platform);
-        // high entropy hints, if allowed (will often be empty without HTTPS/origin trials)
-        if (uaData.getHighEntropyValues) {
-          uaData.getHighEntropyValues(['architecture','bitness','model','platformVersion','uaFullVersion'])
-            .then(vals => {
-              addJSON(root, 'userAgentData.highEntropy', vals);
-              state.data.userAgentData = { brands, mobile: uaData.mobile, platform: uaData.platform, ...vals };
-            })
-            .catch(() => {
-              state.data.userAgentData = { brands, mobile: uaData.mobile, platform: uaData.platform };
-            });
-        } else {
-          state.data.userAgentData = { brands, mobile: uaData.mobile, platform: uaData.platform };
-        }
-      } else {
-        addKV(root, 'userAgentData', 'not available');
-      }
+      addKV(root, 'navigator.userAgent', navigator.userAgent);
+      state.data.userAgent = navigator.userAgent;
     }
-
-    // 2) Platform, Locale, Time
-    function collectPlatformLocaleTime() {
+    function collectPlatform() {
       const root = $('#platList');
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const langs = navigator.languages || [navigator.language];
       addKV(root, 'platform', navigator.platform);
       addKV(root, 'language', navigator.language);
-      addJSON(root, 'languages', langs);
-      addKV(root, 'timeZone', tz);
-      addKV(root, 'now (ISO)', new Date().toISOString());
-      addKV(root, 'doNotTrack', navigator.doNotTrack || '—');
-      state.data.platformLocaleTime = { platform: navigator.platform, language: navigator.language, languages: langs, timeZone: tz, now: new Date().toISOString(), doNotTrack: navigator.doNotTrack || null };
+      addJSON(root, 'languages', navigator.languages);
+      addKV(root, 'timeZone', Intl.DateTimeFormat().resolvedOptions().timeZone);
+      state.data.platform = { platform: navigator.platform, language: navigator.language, languages: navigator.languages };
     }
-
-    // 3) Screen & Viewport
-    function collectScreenViewport() {
+    function collectScreen() {
       const root = $('#screenList');
-      const dpr = window.devicePixelRatio || 1;
-      addKV(root, 'screen.width × height', `${screen.width} × ${screen.height}`);
-      addKV(root, 'screen.availWidth × availHeight', `${screen.availWidth} × ${screen.availHeight}`);
-      addKV(root, 'innerWidth × innerHeight', `${window.innerWidth} × ${window.innerHeight}`);
-      addKV(root, 'outerWidth × outerHeight', `${window.outerWidth} × ${window.outerHeight}`);
-      addKV(root, 'devicePixelRatio', dpr);
-      state.data.screenViewport = {
-        screen: { width: screen.width, height: screen.height, availWidth: screen.availWidth, availHeight: screen.availHeight },
-        viewport: { innerWidth: window.innerWidth, innerHeight: window.innerHeight, outerWidth: window.outerWidth, outerHeight: window.outerHeight },
-        devicePixelRatio: dpr
-      };
+      addKV(root, 'screen', `${screen.width}×${screen.height}`);
+      addKV(root, 'viewport', `${innerWidth}×${innerHeight}`);
+      state.data.screen = { screen: [screen.width,screen.height], viewport: [innerWidth,innerHeight] };
     }
-
-    // 4) Hardware & Features
     function collectHardware() {
       const root = $('#hwList');
-      addKV(root, 'hardwareConcurrency (cores)', navigator.hardwareConcurrency ?? '—');
-      addKV(root, 'deviceMemory (GiB, approx)', navigator.deviceMemory ?? '—');
-      addKV(root, 'maxTouchPoints', navigator.maxTouchPoints ?? '—');
-      addKV(root, 'cookieEnabled', navigator.cookieEnabled);
-      addKV(root, 'colorDepth', screen.colorDepth);
-      addKV(root, 'pixelDepth', screen.pixelDepth);
-
-      const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      addKV(root, 'prefers-reduced-motion', prefersReducedMotion);
-
-      const pointerFine = matchMedia('(pointer:fine)').matches;
-      const pointerCoarse = matchMedia('(pointer:coarse)').matches;
-      addKV(root, 'pointer', pointerFine ? 'fine' : (pointerCoarse ? 'coarse' : 'none'));
-
-      state.data.hardware = {
-        hardwareConcurrency: navigator.hardwareConcurrency ?? null,
-        deviceMemory: navigator.deviceMemory ?? null,
-        maxTouchPoints: navigator.maxTouchPoints ?? 0,
-        cookieEnabled: navigator.cookieEnabled,
-        colorDepth: screen.colorDepth,
-        pixelDepth: screen.pixelDepth,
-        prefersReducedMotion,
-        pointer: pointerFine ? 'fine' : (pointerCoarse ? 'coarse' : 'none')
-      };
+      addKV(root, 'cores', navigator.hardwareConcurrency);
+      addKV(root, 'deviceMemory (GiB)', navigator.deviceMemory ?? '—');
+      addKV(root, 'touchPoints', navigator.maxTouchPoints);
+      state.data.hardware = { cores: navigator.hardwareConcurrency, deviceMemory: navigator.deviceMemory, touch: navigator.maxTouchPoints };
     }
-
-    // 5) Network
     function collectNetwork() {
       const root = $('#netList');
-      const c = navigator.connection || navigator.webkitConnection || navigator.mozConnection;
+      const c = navigator.connection;
       if (c) {
         addKV(root, 'effectiveType', c.effectiveType);
         addKV(root, 'downlink (Mbps)', c.downlink);
-        addKV(root, 'rtt (ms)', c.rtt);
-        addKV(root, 'saveData', c.saveData);
-        addKV(root, 'type', c.type || '—');
-        state.data.network = { effectiveType: c.effectiveType, downlink: c.downlink, rtt: c.rtt, saveData: c.saveData, type: c.type || null };
-      } else {
-        addKV(root, 'navigator.connection', 'not available');
-        state.data.network = null;
-      }
+        state.data.network = { effectiveType: c.effectiveType, downlink: c.downlink };
+      } else { addKV(root, 'connection', 'not available'); }
     }
-
-    // 6) Storage estimate
     async function collectStorage() {
       const root = $('#storeList');
-      if (navigator.storage && navigator.storage.estimate) {
-        try {
-          const est = await navigator.storage.estimate();
-          addKV(root, 'quota', est.quota ? bytes(est.quota) : '—');
-          addKV(root, 'usage', est.usage ? bytes(est.usage) : '—');
-          addJSON(root, 'usageDetails', est.usageDetails || {});
-          state.data.storage = est;
-        } catch {
-          addKV(root, 'storage.estimate', 'error');
-        }
-      } else {
-        addKV(root, 'storage', 'not available');
-      }
+      if (navigator.storage?.estimate) {
+        const est = await navigator.storage.estimate();
+        addKV(root, 'quota', bytes(est.quota));
+        addKV(root, 'usage', bytes(est.usage));
+        state.data.storage = est;
+      } else { addKV(root, 'storage', 'not available'); }
     }
-
-    // 7) Document & Navigation
-    function collectDocumentNav() {
+    function collectDoc() {
       const root = $('#docList');
       addKV(root, 'referrer', document.referrer || '—');
       addKV(root, 'visibilityState', document.visibilityState);
-      const navEntries = (performance.getEntriesByType && performance.getEntriesByType('navigation')) || [];
-      const nav = navEntries[0] || performance.navigation || {};
-      addJSON(root, 'navigation', nav.toJSON ? nav.toJSON() : nav);
-      state.data.document = {
-        referrer: document.referrer || null,
-        visibilityState: document.visibilityState,
-        navigation: nav.toJSON ? nav.toJSON() : nav
-      };
-    }
-
-    // 8) Capabilities (safe probes)
-    function hasApi(path) {
-      try {
-        return path.split('.').reduce((o, k) => (o && k in o) ? o[k] : undefined, window) !== undefined;
-      } catch { return false; }
+      state.data.document = { referrer: document.referrer, visibility: document.visibilityState };
     }
     function collectCapabilities() {
       const root = $('#capList');
       const caps = {
         geolocation: !!navigator.geolocation,
-        clipboardRead: hasApi('navigator.clipboard.readText'),
-        clipboardWrite: hasApi('navigator.clipboard.writeText'),
-        webgl: hasApi('WebGLRenderingContext'),
-        webgl2: hasApi('WebGL2RenderingContext'),
-        bluetooth: !!navigator.bluetooth,
-        usb: !!navigator.usb,
-        serial: !!navigator.serial,
-        midi: !!navigator.requestMIDIAccess,
-        mediaDevices: !!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices),
-        share: !!navigator.share,
-        wakeLock: !!(navigator.wakeLock && navigator.wakeLock.request),
-        screenWakeLock: 'wakeLock' in navigator,
-        fullscreen: !!document.fullscreenEnabled,
-        notifications: 'Notification' in window,
-        serviceWorker: 'serviceWorker' in navigator
+        clipboard: !!navigator.clipboard,
+        webgl: 'WebGLRenderingContext' in window,
+        notifications: 'Notification' in window
       };
       Object.entries(caps).forEach(([k,v]) => addKV(root, k, v));
       state.data.capabilities = caps;
     }
 
-    // 9) Manual probes
-    function probeWebGL() {
-      const root = $('#webglList');
-      root.innerHTML = '';
-      try {
-        const canvas = document.createElement('canvas');
-        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-        if (!gl) { addKV(root, 'Status', 'WebGL not supported or disabled'); return; }
-        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-        const vendor = debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR);
-        const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-        addKV(root, 'Vendor', vendor);
-        addKV(root, 'Renderer', renderer);
-        state.data.webgl = { vendor, renderer };
-      } catch (e) {
-        addKV(root, 'Error', String(e));
-      }
-    }
-
-    async function checkPermissions() {
-      const root = $('#permList');
-      root.innerHTML = '';
-      if (!navigator.permissions || !navigator.permissions.query) {
-        addKV(root, 'permissions', 'API not available');
-        return;
-      }
-      const names = ['geolocation','notifications','clipboard-read','clipboard-write','camera','microphone','background-sync','accelerometer','gyroscope','magnetometer','midi','local-fonts'];
-      const out = {};
-      for (const name of names) {
-        try {
-          const status = await navigator.permissions.query({ name });
-          out[name] = status.state;
-          addKV(root, name, status.state);
-        } catch {
-          out[name] = 'unsupported';
-          addKV(root, name, 'unsupported');
-        }
-      }
-      state.data.permissions = out;
-    }
-
-    async function checkBattery() {
-      const root = $('#batList');
-      root.innerHTML = '';
-      if (!navigator.getBattery) { addKV(root, 'battery', 'API not available'); return; }
-      try {
-        const b = await navigator.getBattery();
-        const data = {
-          charging: b.charging,
-          level: b.level,
-          chargingTime: b.chargingTime,
-          dischargingTime: b.dischargingTime
-        };
-        Object.entries(data).forEach(([k,v]) => addKV(root, k, v));
-        state.data.battery = data;
-      } catch (e) {
-        addKV(root, 'battery', 'error: ' + e);
-      }
-    }
-
-    // Actions
     $('#refreshBtn').addEventListener('click', collectAll);
-    $('#webglBtn').addEventListener('click', probeWebGL);
-    $('#permBtn').addEventListener('click', checkPermissions);
-    $('#batteryBtn').addEventListener('click', checkBattery);
-
     $('#copyBtn').addEventListener('click', async () => {
-      try {
-        const json = JSON.stringify(state.data, null, 2);
-        await navigator.clipboard.writeText(json);
-        alert('Copied JSON to clipboard.');
-      } catch {
-        alert('Copy failed (clipboard permissions or unsupported).');
-      }
+      await navigator.clipboard.writeText(JSON.stringify(state.data, null, 2));
+      alert('Copied JSON to clipboard');
     });
-
     $('#downloadBtn').addEventListener('click', () => {
       const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'browser-inspector.json';
-      a.click();
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'browser-inspector.json'; a.click();
       URL.revokeObjectURL(a.href);
     });
 
-    // Initial run
     collectAll();
-
-    // Update viewport metrics on resize (no storage)
-    window.addEventListener('resize', () => {
-      const root = $('#screenList');
-      root.innerHTML = '';
-      collectScreenViewport();
-    }, { passive: true });
   </script>
 </body>
 </html>
