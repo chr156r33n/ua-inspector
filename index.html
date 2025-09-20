@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Local Browser Inspector</title>
-<meta name="description" content="Client-only inspector.">
+<title>Page Helper</title>
+<meta name="description" content="Page Helper">
 <style>
   :root {
     --bg:#0b0d10; --fg:#e8eef2; --muted:#9fb0bf; --card:#14181d; --border:#243442; --accent:#7bdcff;
@@ -30,22 +30,23 @@
   dt { color:var(--muted); font-size:13px; margin-top:8px; }
   dd { margin:2px 0 8px; font-family:var(--mono); font-size:13px; word-break:break-word; }
   .note { font-size:12px; color:var(--muted); margin-left:auto; }
-  canvas { display:none; } /* only used for PNG rendering */
+  .preview-wrap { margin-top:16px; }
+  .preview-wrap h3 { margin:8px 0 8px; font-size:15px; color:var(--muted); }
+  .img-frame { border:1px solid var(--border); border-radius:12px; padding:6px; background:var(--card); }
+  #pngPreview { max-width:100%; height:auto; display:block; }
+  canvas { display:none; } /* used internally to render PNG */
 </style>
 </head>
 <body>
 <header>
-  <h1>Browser Inspector</h1>
-  <p class="lead">Runs locally - privacy safe.</p>
+  <h1>Page Helpder</h1>
+  <p class="lead">Runs locally.</p>
 </header>
 
 <main>
   <div class="toolbar">
     <button id="refreshBtn">↻ Refresh</button>
     <button id="copyBtn">📋 Copy JSON</button>
-    <button id="downloadJsonBtn">⬇️ JSON</button>
-    <button id="downloadPngBtn">🖼️ PNG</button>
-    <button id="downloadSvgBtn">🧩 SVG</button>
   </div>
 
   <div class="cards">
@@ -59,11 +60,18 @@
     <section class="card"><h2>Capabilities</h2><dl id="capList"></dl></section>
   </div>
 
+  <div class="preview-wrap">
+    <h3>Picture</h3>
+    <div class="img-frame">
+      <img id="pngPreview" alt="Generated PNG preview of your browser details" />
+    </div>
+  </div>
+
   <canvas id="pngCanvas" width="1400" height="0"></canvas>
 </main>
 
 <script>
-  // --- Utilities
+  // --- Helpers
   const $ = s => document.querySelector(s);
   const addKV = (root, k, v) => {
     const dt = document.createElement('dt'); dt.textContent = k;
@@ -80,6 +88,7 @@
     state.data = {}; state.sections = [];
     clearAll();
     collectUA(); collectPlatform(); collectScreen(); collectHardware(); collectNetwork(); await collectStorage(); collectDoc(); collectCapabilities();
+    await previewPNG(); // show inline image after collecting
   }
   function clearAll(){
     ['uaList','platList','screenList','hwList','netList','storeList','docList','capList'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML=''; });
@@ -94,7 +103,6 @@
     const root = $('#uaList');
     const ua = navigator.userAgent || '—';
     addKV(root, 'navigator.userAgent', ua);
-    // UA-CH (if available)
     const uad = navigator.userAgentData;
     if (uad) {
       addJSON(root, 'userAgentData.brands', uad.brands || []);
@@ -220,36 +228,28 @@
     pushSection('Capabilities', caps);
   }
 
-  // --- Exports
+  // --- SVG builder reused for PNG render
   function buildSVG(){
-    // Simple card-like SVG layout with monospace values
     const pad = 24, lineH = 18, titleH = 22, cardGap = 20, cardPad = 16, colGap = 40;
-    const colWidth = 620; // two columns
-    const cols = 2;
-    // Pre-measure height
+    const colWidth = 620; const cols = 2;
     const entryLines = s => String(s).split(/\r?\n/).length;
     const cardHeights = state.sections.map(sec => {
       let h = titleH + 8;
       sec.entries.forEach(([k, v]) => { h += lineH * Math.max(1, entryLines(v)); });
       return h + cardPad*2;
     });
-
-    // Pack cards into two columns
     const colHeights = Array(cols).fill(0);
-    const positions = state.sections.map((sec, i) => {
+    const positions = state.sections.map((_, i) => {
       const col = (colHeights[0] <= colHeights[1]) ? 0 : 1;
       const x = pad + col * (colWidth + colGap);
       const y = pad + colHeights[col];
       colHeights[col] += cardHeights[i] + cardGap;
-      return { x, y, w: colWidth, h: cardHeights[i], col };
+      return { x, y, w: colWidth, h: cardHeights[i] };
     });
-
     const width = pad*2 + cols*colWidth + (cols-1)*colGap;
-    const height = Math.max(colHeights[0], colHeights[1]) + pad;
-
+    const height = Math.max(...colHeights) + pad;
     const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const now = new Date().toISOString();
-
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" role="img" aria-label="Browser Inspector">
   <style>
     .bg { fill: ${getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0b0d10'}; }
@@ -262,77 +262,53 @@
   </style>
   <rect class="bg" x="0" y="0" width="${width}" height="${height}" rx="0"/>
   <text x="${pad}" y="${pad-6}" class="hdr">Browser Inspector — ${esc(now)}</text>
-  <text x="${pad}" y="${pad+10}" class="sub">Local-only export (no network). Theme matches your system preference.</text>
+  <text x="${pad}" y="${pad+10}" class="sub">Local-only render (no network). Theme matches your system preference.</text>
 `;
+    let cursorYs = state.sections.map(() => 0); // not used externally; we compute inside loop
     state.sections.forEach((sec, i) => {
       const { x, y, w, h } = positions[i];
       svg += `  <g>
     <rect class="card" x="${x}" y="${y}" width="${w}" height="${h}" rx="12"/>
-    <text class="title" x="${x+cardPad}" y="${y+cardPad+12}">${esc(sec.title)}</text>
+    <text class="title" x="${x+16}" y="${y+16+12}">${esc(sec.title)}</text>
 `;
-      let cursorY = y + cardPad + 12 + 8 + 6;
+      let cy = y + 16 + 12 + 8 + 6;
       sec.entries.forEach(([k, v]) => {
         const val = String(v ?? '—');
         const lines = val.split(/\r?\n/);
-        svg += `    <text class="k" x="${x+cardPad}" y="${cursorY}">${esc(k)}</text>\n`;
-        cursorY += 14;
+        svg += `    <text class="k" x="${x+16}" y="${cy}">${esc(k)}</text>\n`;
+        cy += 14;
         lines.forEach(ln => {
-          svg += `    <text class="v" x="${x+cardPad}" y="${cursorY}">${esc(ln)}</text>\n`;
-          cursorY += 16;
+          svg += `    <text class="v" x="${x+16}" y="${cy}">${esc(ln)}</text>\n`;
+          cy += 16;
         });
-        cursorY += 2;
+        cy += 2;
       });
       svg += '  </g>\n';
     });
-
     svg += '</svg>';
     return svg;
   }
 
-  function downloadSVG(){
-    const svg = buildSVG();
-    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'browser-inspector.svg';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  async function downloadPNG(){
-    // Render SVG to canvas, then to PNG
+  async function previewPNG(){
     const svg = buildSVG();
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
     const img = new Image();
-    // Ensure proper sizing by reading width/height from the SVG we generated
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(svg, 'image/svg+xml');
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
     const w = parseInt(doc.documentElement.getAttribute('width'), 10);
     const h = parseInt(doc.documentElement.getAttribute('height'), 10);
-
     const canvas = $('#pngCanvas');
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d');
 
-    await new Promise((res, rej) => {
-      img.onload = () => { res(); };
-      img.onerror = rej;
-      img.src = url;
-    });
-
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
     ctx.drawImage(img, 0, 0);
     URL.revokeObjectURL(url);
 
-    canvas.toBlob(blob => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'browser-inspector.png';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }, 'image/png', 1.0);
+    const dataURL = canvas.toDataURL('image/png');
+    $('#pngPreview').src = dataURL;
   }
 
-  // --- UI actions
+  // --- UI
   $('#refreshBtn').addEventListener('click', collectAll);
   $('#copyBtn').addEventListener('click', async () => {
     try {
@@ -340,28 +316,23 @@
       alert('Copied JSON to clipboard.');
     } catch { alert('Clipboard not available.'); }
   });
-  $('#downloadJsonBtn').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'browser-inspector.json'; a.click();
-    URL.revokeObjectURL(a.href);
-  });
-  $('#downloadPngBtn').addEventListener('click', downloadPNG);
-  $('#downloadSvgBtn').addEventListener('click', downloadSVG);
 
-  // Initial run + keep viewport section fresh on resize
-  collectAll();
-  addEventListener('resize', () => {
+  // keep viewport section + image fresh on resize
+  addEventListener('resize', async () => {
     const list = $('#screenList'); list.innerHTML = '';
     collectScreen();
-    // also update the section used for image export
+    // update the stored section for image layout
     const i = state.sections.findIndex(s => s.title === 'Screen/Viewport');
     if (i !== -1) state.sections[i] = { title: 'Screen/Viewport', entries: Object.entries({
       'screen': `${screen.width} × ${screen.height}`,
       'viewport': `${innerWidth} × ${innerHeight}`,
       'devicePixelRatio': window.devicePixelRatio || 1
     })};
+    await previewPNG();
   }, { passive: true });
+
+  // Initial render
+  collectAll();
 </script>
 </body>
 </html>
