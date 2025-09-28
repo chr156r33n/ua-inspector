@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Page Helper</title>
 <meta name="description" content="Page Helper">
+<meta name="robots" content="noindex,follow" />
 <style>
   :root {
     --bg:#0b0d10; --fg:#e8eef2; --muted:#9fb0bf; --card:#14181d; --border:#243442; --accent:#7bdcff;
@@ -39,14 +40,15 @@
 </head>
 <body>
 <header>
-  <h1>Page Helpder</h1>
-  <p class="lead">Runs locally.</p>
+  <h1>Page Helper</h1>
+  <p class="lead">Runs locally; posts a summary to your server for bot analysis.</p>
 </header>
 
 <main>
   <div class="toolbar">
     <button id="refreshBtn">↻ Refresh</button>
     <button id="copyBtn">📋 Copy JSON</button>
+    <span class="note">noindex, but crawlable</span>
   </div>
 
   <div class="cards">
@@ -57,20 +59,30 @@
     <section class="card"><h2>Network (Browser-reported)</h2><dl id="netList"></dl></section>
     <section class="card"><h2>Storage (Estimate Only)</h2><dl id="storeList"></dl></section>
     <section class="card"><h2>Document & Navigation</h2><dl id="docList"></dl></section>
-    <section class="card"><h2>Capabilities</h2><dl id="capList"></dl></section>
+    <section class="card"><h2>Capabilities & Probes</h2><dl id="capList"></dl></section>
   </div>
 
   <div class="preview-wrap">
     <h3>Picture</h3>
     <div class="img-frame">
-      <img id="png" />
+      <img id="pngPreview" alt="Rendered page preview (PNG)"/>
     </div>
   </div>
 
   <canvas id="pngCanvas" width="1400" height="0"></canvas>
 </main>
 
+<!-- Noscript: log HTML-only fetches/no-JS crawlers -->
+<noscript>
+  <img src="/bot-lab/noscript-pixel?ts=noscript" alt="" width="1" height="1" />
+</noscript>
+
 <script>
+  // --- CONFIG
+  const COLLECT_ENDPOINT = '/bot-lab/collect';
+  const COLLECT_IMAGE_ENDPOINT = '/bot-lab/collect-image';
+  const SEND_PNG = true; // set to false to skip PNG upload
+
   // --- Helpers
   const $ = s => document.querySelector(s);
   const addKV = (root, k, v) => {
@@ -89,6 +101,8 @@
     clearAll();
     collectUA(); collectPlatform(); collectScreen(); collectHardware(); collectNetwork(); await collectStorage(); collectDoc(); collectCapabilities();
     await previewPNG(); // show inline image after collecting
+    await shipResults(); // send summary
+    if (SEND_PNG) await shipPNG(); // optional: send image
   }
   function clearAll(){
     ['uaList','platList','screenList','hwList','netList','storeList','docList','capList'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML=''; });
@@ -225,7 +239,22 @@
       serviceWorker: 'serviceWorker' in navigator
     };
     Object.entries(caps).forEach(([k,v]) => addKV(root, k, v));
-    pushSection('Capabilities', caps);
+    // Extra probes for bot capability scoring
+    let storageWrite = false;
+    try { localStorage.setItem('botlab','1'); storageWrite = localStorage.getItem('botlab') === '1'; } catch(_){}
+    const extras = {
+      RenderCheck: {
+        domReady: document.readyState,
+        hadLayout: !!document.getElementById('screenList')?.children?.length,
+        ranCanvas: !!document.getElementById('pngPreview')?.src
+      },
+      StorageProbe: { localStorageWrite: storageWrite },
+      ESSupport: { dynamicImport: typeof import !== 'undefined' }
+    };
+    addJSON(root, 'RenderCheck', extras.RenderCheck);
+    addJSON(root, 'StorageProbe', extras.StorageProbe);
+    addJSON(root, 'ESSupport', extras.ESSupport);
+    pushSection('Capabilities/Probes', { ...caps, ...extras });
   }
 
   // --- SVG builder reused for PNG render
@@ -262,9 +291,8 @@
   </style>
   <rect class="bg" x="0" y="0" width="${width}" height="${height}" rx="0"/>
   <text x="${pad}" y="${pad-6}" class="hdr">Browser Inspector — ${esc(now)}</text>
-  <text x="${pad}" y="${pad+10}" class="sub">Local-only render (no network). Theme matches your system preference.</text>
+  <text x="${pad}" y="${pad+10}" class="sub">Local-only render (no third-party calls). Theme matches your system preference.</text>
 `;
-    let cursorYs = state.sections.map(() => 0); // not used externally; we compute inside loop
     state.sections.forEach((sec, i) => {
       const { x, y, w, h } = positions[i];
       svg += `  <g>
@@ -308,6 +336,45 @@
     $('#pngPreview').src = dataURL;
   }
 
+  // --- Ship to server
+  async function shipResults(){
+    try {
+      const pngDataUrl = document.getElementById('pngPreview')?.src || '';
+      const payload = {
+        ts: new Date().toISOString(),
+        location: location.href,
+        referrer: document.referrer || '',
+        userAgent: navigator.userAgent || '',
+        ch: navigator.userAgentData || null,
+        data: state.data,
+        png_len: pngDataUrl ? pngDataUrl.length : 0
+      };
+      const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
+      const ok = navigator.sendBeacon?.(COLLECT_ENDPOINT, blob);
+      if (!ok) {
+        await fetch(COLLECT_ENDPOINT, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
+      }
+    } catch(e) {
+      console.warn('shipResults error', e);
+    }
+  }
+
+  async function shipPNG(){
+    try {
+      const dataUrl = document.getElementById('pngPreview')?.src;
+      if (!dataUrl) return;
+      const res = await fetch(dataUrl);
+      const pngBlob = await res.blob();
+      const form = new FormData();
+      form.append('png', pngBlob, 'render.png');
+      form.append('ua', navigator.userAgent || '');
+      form.append('ts', new Date().toISOString());
+      await fetch(COLLECT_IMAGE_ENDPOINT, { method:'POST', body: form });
+    } catch(e){
+      console.warn('shipPNG error', e);
+    }
+  }
+
   // --- UI
   $('#refreshBtn').addEventListener('click', collectAll);
   $('#copyBtn').addEventListener('click', async () => {
@@ -331,7 +398,7 @@
     await previewPNG();
   }, { passive: true });
 
-  // Initial render
+  // Initial render + ship
   collectAll();
 </script>
 </body>
