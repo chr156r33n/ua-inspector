@@ -239,6 +239,7 @@
       serviceWorker: 'serviceWorker' in navigator
     };
     Object.entries(caps).forEach(([k,v]) => addKV(root, k, v));
+
     // Extra probes for bot capability scoring
     let storageWrite = false;
     try { localStorage.setItem('botlab','1'); storageWrite = localStorage.getItem('botlab') === '1'; } catch(_){}
@@ -249,7 +250,10 @@
         ranCanvas: !!document.getElementById('pngPreview')?.src
       },
       StorageProbe: { localStorageWrite: storageWrite },
-      ESSupport: { dynamicImport: typeof import !== 'undefined' }
+      ESSupport: {
+        // Safe feature check that doesn't reference the 'import' keyword
+        moduleScripts: ('noModule' in HTMLScriptElement.prototype)
+      }
     };
     addJSON(root, 'RenderCheck', extras.RenderCheck);
     addJSON(root, 'StorageProbe', extras.StorageProbe);
@@ -340,17 +344,21 @@
   async function shipResults(){
     try {
       const pngDataUrl = document.getElementById('pngPreview')?.src || '';
+      // Sanitize UA-CH to a plain object (avoids weird serialisation issues)
+      const uad = navigator.userAgentData;
+      const ch = uad ? { mobile: uad.mobile, platform: uad.platform, brands: uad.brands || [] } : null;
+
       const payload = {
         ts: new Date().toISOString(),
         location: location.href,
         referrer: document.referrer || '',
         userAgent: navigator.userAgent || '',
-        ch: navigator.userAgentData || null,
+        ch,
         data: state.data,
         png_len: pngDataUrl ? pngDataUrl.length : 0
       };
       const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
-      const ok = navigator.sendBeacon?.(COLLECT_ENDPOINT, blob);
+      const ok = (navigator.sendBeacon && navigator.sendBeacon(COLLECT_ENDPOINT, blob)) || false;
       if (!ok) {
         await fetch(COLLECT_ENDPOINT, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
       }
